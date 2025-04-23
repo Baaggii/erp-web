@@ -2,7 +2,9 @@ name: Deploy to VPS
 
 on:
   push:
-    branches: [ master ]          # эсвэл main
+    branches:
+      - master          # эсвэл main, feature/login-ui зэргийг доор нэмэж болно
+      - feature/login-ui
 
 jobs:
   deploy:
@@ -12,13 +14,13 @@ jobs:
       - name: SSH & deploy
         uses: appleboy/ssh-action@v1
         with:
-          host:     ${{ secrets.SSH_HOST }}
+          host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key:      ${{ secrets.SSH_KEY }}
+          key: ${{ secrets.SSH_KEY }}
           script: |
             export NODE_OPTIONS=--openssl-legacy-provider
             cd ~/apps/erp-web
             git pull origin master
-            npm install --omit=dev      # lock тохирсон бол npm ci
+            npm install --omit=dev
             npm run build
             pm2 reload erp-web
