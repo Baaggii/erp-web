@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/erp/static/js/main.fcf71e4d.js",
+    "index.html": "/erp/index.html",
+    "main.fcf71e4d.js.map": "/erp/static/js/main.fcf71e4d.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.fcf71e4d.js"
+  ]
+}
