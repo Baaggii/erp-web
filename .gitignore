@@ -1,0 +1,11 @@
+# Dependency folders
+node_modules/
+
+# Build artefacts
+build/
+
+# Binary / архив
+*.zip
+
+# Нууц тохиргоо
+.env
