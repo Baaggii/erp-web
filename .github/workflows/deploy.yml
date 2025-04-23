@@ -1,16 +1,17 @@
+# .github/workflows/deploy.yml
 name: Deploy to VPS
 
 on:
   push:
-    branches: [ master ]          # эсвэл main / feature/login-ui
+    branches: [ master ]           # эсвэл main / feature/login-ui
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Run deploy script on server
-        uses: appleboy/ssh-action@v1        # ← steps дотор
+      - name: SSH & deploy
+        uses: appleboy/ssh-action@v1
         with:
           host:     ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -19,6 +20,6 @@ jobs:
             export NODE_OPTIONS=--openssl-legacy-provider
             cd ~/apps/erp-web
             git pull origin master
-            npm install --omit=dev        # (эсвэл npm ci)
+            npm install --omit=dev           # lock файлтай үед npm ci
             npm run build
-            pm2 reload erp-web
+            pm2 reload erp-web               # анхны удаад serve -f
