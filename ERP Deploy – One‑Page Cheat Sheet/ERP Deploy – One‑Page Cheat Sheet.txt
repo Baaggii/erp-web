@@ -1,0 +1,250 @@
+# ERP Deploy – One‑Page Cheat Sheet
+
+> **Paste the two‑line header below at the beginning of any new chat** and ChatGPT will instantly load the full project context.
+>
+> ```text
+> Project canvas: ERP‑Deployment‑Cheat‑Sheet
+> GitHub repo: https://github.com/Baaggii/erp-web
+> ```
+
+---
+
+## 1 Quick project snapshot
+
+| Item                | Value                                                                    |
+| ------------------- | ------------------------------------------------------------------------ |
+| **GitHub repo**     | <https://github.com/Baaggii/erp-web> |
+| **Default branch**  | `master` *(change if needed)*                                             |
+| **VPS user / path** | `modmark1 ~/apps/erp-web`                                                 |
+| **Serving port**    | `3000` (React build – served by PM2)                                      |
+| **Public URL**      | `https://modmarket.mn/erp/`                                               |
+
+> ✏️ Edit the table with the real repo URL / domain before sharing.
+
+---
+
+## 2 Folder map on the server
+
+```text
+apps/
+└─ erp-web/              # Git clone lives here
+   ├─ build/             # React production build (pm2 serves)
+   ├─ src/               # Source (optional – kept for reference)
+   ├─ package.json       # ← lock‑file matches Node 20
+   └─ db/                # schema.sql lives here (☑ committed to Git)
+```
+
+---
+
+## 3 GitHub Actions auto‑deploy (already set up)
+
+```yaml
+name: Deploy ERP to VPS
+on:
+  push:
+    branches: [ master ]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: appleboy/ssh-action@v1
+        with:
+          host:       ${{ secrets.SSH_HOST }}
+          port:       ${{ secrets.SSH_PORT }}
+          username:   ${{ secrets.SSH_USER }}
+          key:        ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}        # omit if key has no passphrase
+          script: |
+            export NODE_OPTIONS=--openssl-legacy-provider
+            cd ~/apps/erp-web
+            git pull --rebase origin master
+            npm install --omit=dev         # or `npm ci` if lock‑file in sync
+            npm run build
+            pm2 reload erp-web || pm2 serve build 3000 -f --spa --name erp-web
+```
+
+Secrets (`Settings → Secrets & Vars`): `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`, `SSH_PASSPHRASE`.
+
+---
+
+## 4 Typical workflow
+
+1. **Develop locally**  →  `npm install` (Node 20) → commit / push.
+2. GitHub Action runs; SSH‑deploys build; `pm2 reload erp-web`.
+3. Open `https://modmarket.mn/erp/` to verify; rollback via `git revert` + push if needed.
+
+---
+
+## 5 Functional specification (full)
+
+### 1. Ерөнхий зорилго
+
+Вэб суурьтай **ERP систем** — байгууллагын **санхүү, агуулах, захиалга, төлөвлөгөө, гэрээ, ажилчдын бүртгэл** зэрэг тархай процессыг нэгтгэн автоматажуулж, тайлан мэдээллийг шуурхай боловсруулж удирдлагад хүргэнэ.
+
+### 2. Үндсэн модулууд ба бүрэлдэхүүн хэсгүүд
+
+| Модуль | Гол чадварууд |
+| ------ | -------------- |
+| **Хэрэглэгчийн удирдлага** | • Нэвтрэх систем (JWT cookie)  • Эрхийн шат (Admin / Finance / Warehouse / Viewer)  • Админ хэрэглэгч үүсгэх  • Хэрэглэгч зөвхөн өөрийн нууц үгийг солих |
+| **Үндсэн цэс** | Санхүүгийн бүртгэл • Агуулах • Санхүүгийн тайлан • Ажлын төлөвлөгөө |
+| **Dashboard** | ‑ Хэрэглэгчийн мэдээлэл (дугаар, нэр, салбар)  ‑ KPI график  ‑ Ажлын төлөвлөгөөний явц  ‑ Шаардлагатай мэдэгдэл / анхааруулга |
+| **Гүйлгээний бүртгэл** | `UserTemp` sheet‑ээс уншиж **динамик форм** үүсгэнэ. 7 төрлийн гүйлгээг дараах хүснэгтүүдэд шиднэ: **SOrlogo**, **SZardal**, **BMBurtgel**, **mmorder**, **plan**, **SgereeJ**, **tusuv** |
+| **Динамик form builder** | • `form_fields` metadata‑гаас widget төрлийг тодорхойлно  • `lookup_table` + `lookup_label`‑р combobox‑уудыг populate  • `default_value`‑д `CONST / SESSION / LOOKUP / FUNC` тэмдэглэгээ — <br>  `SESSION:emp_id` гэх мэт  • Аливаа гүйлгээнд хэрэгтэйгүй багана UI‑д readOnly, DB‑д NULL эсвэл 0 |
+| **Тайлангийн модуль** | • Санхүү (орлого, зарлага, баланс)  • Касс & харилцах  • Бараа материал (FIFO / WA)  • Төлөвлөгөө‑гүйцэтгэлийн тайлан  • Захиалгын тайлан |
+| **Тохируулга** | • Excel импорт — Sheet нэр + эхлэх нүд <br>• Гараар засах UI (admin only) <br>• Импортлогдсон хүснэгтийн жагсаалт, validation, rollback |
+| **Ажилчдын удирдлага** | • Ажиллах цагийн хуваарь  • Цагийн бүртгэл (QR / NFC)  • Цалин тооцоо |
+| **Мобиль capture (Scan‑It analogue)** | • Фото хавсаргах  • Дижитал гарын үсэг  • GPS байршил  • Device ID  • Эдгээр метадата `trx_attachments` хүснэгтэд хадгална |
+
+### 3. Вэб худалдааны сайттай уялдах
+
+* WooCommerce / Custom Shop‑оос **order webhook**  →  ERP‑д **mmorder** + **BMBurtgel OUT** үүсгэнэ.
+* ERP‑ийн **stock API** → вэб талд real‑time үлдэгдэл.
+
+### 4. AI интеграц
+
+* Node service cron‑оор KPI цоорхой, over‑budget зэрэг илрүүлж Dashboard‑д push notification.
+* LLM prompt — «Өчигдрийн борлуулалтын оргил цаг» гэх мэт тайланчлал.
+
+### 5. Технологи стек
+
+| Layer | Tech |
+| ----- | ---- |
+| Frontend | React 18, Vite, TailwindCSS, shadcn/ui, SWR for API |
+| Backend | Node 20, Express Router, Zod validation, JWT cookie auth |
+| DB | MySQL 8.0, knex migrations / objection.js ORM |
+| DevOps | GitHub Actions, PM2, cPanel static serve, ssh‑action deploy |
+| Tests | Jest + supertest (API)  • React Testing Library (UI) |
+
+#### Quick bullet overview (added)
+
+1. **Ерөнхий зорилго** — вэб суурьтай ERP‑ээр бүх үндсэн процессыг нэгтгэж автоматжуулах, тайлан мэдээллийг шуурхай гаргах.
+2. **Үндсэн модулууд ба бүрэлдэхүүн хэсгүүд**
+   - **Хэрэглэгчийн удирдлага:** Нэвтрэх систем, эрхийн шат, нууц үг солих.
+   - **Үндсэн цэс:** Санхүү, Агуулах, Тайлан, Төлөвлөгөө.
+   - **Dashboard:** KPI, төлөвлөгөөний явц, мэдэгдэл.
+   - **Гүйлгээний бүртгэл (динамик):** 7 төрлийн хүснэгтэд шидэх, form builder.
+   - **Тайлангийн модуль:** Санхүү, касс, бараа материал, баланс, ажлын төлөвлөгөө, захиалга.
+   - **Цэс/Навигац:** Tab‑ууд, хаах товч.
+   - **Тохируулга:** Excel импорт, гараар засвар (admin only).
+   - **Ажилчдын удирдлага:** Хуваарь, цагийн бүртгэл, цалин.
+3. **Вэб худалдааны сайттай уялдах** — захиалга ↔ ERP sync, stock API real‑time.
+4. **AI интеграц** — KPI аномали, push notification, боловсруулалт.
+5. **Технологи стек** — Frontend: React + Tailwind, Backend: Node/Express, DB: MySQL, Dynamic forms: JSON.
+6. **Сервер байршуулалт** — cPanel, `/erp`.
+7. **Аюулгүй байдал** — JWT cookie, bcrypt, HTTPS, least‑privilege DB user.
+8. **Хүлээгдэж буй үр дүн** — нэгтгэсэн процесс, шуурхай тайлан, ERP ⇆ Web автомат интеграц.
+
+## 6. Сервер байршуулалт
+
+* cPanel VPS – `/home/modmark1/apps/erp-web`  
+* Build artefact static → `pm2 serve build 3000 --spa --name erp-web`  
+* Nginx reverse proxy `/erp/` → `localhost:3000`  (already working).
+
+### 7. Аюулгүй байдал
+
+* Passwords bcrypt(12)  • HTTPS force  • Helmet headers  
+* DB user‑д only CRUD stored‑proc rights  
+* Daily off‑site dump / S3.
+
+### 8. Хүлээгдэж буй үр дүн
+
+* **Нэгтгэсэн** ERP + Web  → data duplication гүй.
+* Тайлангаа real‑time, mobile‑friendly.
+* Аудит, rollback‑тай — санхүүгийн compliance OK.
+
+---
+
+## 6 Database schema
+. Сервер байршуулалт
+
+- cPanel VPS  
+- ERP app root: `/erp`
+
+### 7. Аюулгүй байдал
+
+- JWT cookie auth, bcrypt нууц үг  
+- Role‑based access + token validation  
+- HTTPS enforced, db user with least privilege
+
+### 8. Хүлээгдэж буй үр дүн
+
+- Бизнес‑процесс нэг цэгт
+- Тайлан шуурхай, үнэн зөв
+- ERP ⇆ Web автомат интеграц
+
+---
+
+## 6 Database Database
+
+### Canonical script
+
+* **File:** `db/schema.sql` (version‑controlled in the repo)
+* **Generated from:** `mmaddin1.xlsm` sheets using rule **row 7 = 1  AND  row 2 ≠ "S"**, columns trimmed at `PRINT | LOCATION`.
+* **Current tag:** `schema_v4` (25 Apr 2025).
+
+First deploy (optional):
+```bash
+mysql -u$DB_USER -p$DB_PASS $DB_NAME < db/schema.sql
+```
+
+### Migration policy
+
+1. Add ALTERs to `schema.sql` (or new migration files).
+2. Bump semantic tag → `v5`, `v6` …
+3. Commit & push – CI will apply via Flyway / simple `mysql <` step.
+
+### Audit strategy
+
+*Transaction tables* keep a single `status` ENUM (`draft / confirmed / edited / deleted`).
+Detailed history (who/when/why) lives in **audit_logs** trigger‑based table. Legacy `*num` columns retained until data import is validated, then dropped.
+
+---
+
+*Last updated: 25 Apr 2025*
+
+
+### Relationships (simplified)
+```
+users.role_id        -> roles.id
+SOrlogo.created_by   -> users.id
+SZardal.created_by   -> users.id
+BMBurtgel.item_code  -> items.code
+mmorder.id           -> BMBurtgel.ref_no (optional)
+plan.owner_id        -> users.id
+```
+
+### Dynamic form metadata (`form_fields`)
+Holds UI‑generation rules so a single form can pull multiple lookups. Any field not used in a transaction simply stores **NULL / 0 / ''** as per `data_type`.
+
+| Column        | Type & constraints                                             | Notes                                   |
+|---------------|---------------------------------------------------------------|-----------------------------------------|
+| **id**        | INT AUTO_INCREMENT PRIMARY KEY                                 |                                         |
+| trx_type      | VARCHAR(30) NOT NULL                                           | e.g. `SOrlogo`, `SZardal`               |
+| field_name    | VARCHAR(50) NOT NULL                                           | Column in target trx table              |
+| label         | VARCHAR(80)                                                    | UI label                                |
+| data_type     | ENUM('string','number','date','select','textarea') NOT NULL    | Input widget                            |
+| editable      | TINYINT(1) DEFAULT 1                                           | 0 = read‑only                           |
+| required      | TINYINT(1) DEFAULT 0                                           |                                         |
+| lookup_table  | VARCHAR(50) NULL                                               | e.g. `items`, `accounts`                |
+| lookup_label  | VARCHAR(50) NULL                                               | Which column to display in combobox     |
+| default_value | VARCHAR(120) NULL                                              | Auto‑prefill                            |
+
+**Rule:** if a field is *irrelevant* to a given transaction, it still exists in the schema but the UI marks it read‑only and stores `NULL/0/''` so the schema remains consistent.
+
+---
+
+### `schema.sql` migration
+```
+repo/
+└─ db/
+   └─ schema.sql   # canonical DDL script that creates all tables above
+```
+- Keep `schema.sql` inside the Git repo so the DDL is version‑controlled.
+- First‑time deploy in GitHub Actions:
+  ```bash
+  mysql -u$DB_USER -p$DB_PASS $DB_NAME < db/schema.sql
+  ```
+- When the schema changes, append the proper `ALTER` statements, commit, tag with a semantic version (e.g. **v0.2**, **v0.3**), and deploy.
+
+> **Next step:** finalise datatypes & generate the initial `schema.sql`, then add lookup tables (`accounts`, `locations`, etc.).
